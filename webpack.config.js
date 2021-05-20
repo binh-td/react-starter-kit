@@ -1,29 +1,50 @@
 const path = require("path");
+const webpack = require("webpack")
 const ReactRefreshWebpackPlugin = require("@pmmmwh/react-refresh-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
-const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const CopyPlugin = require("copy-webpack-plugin")
+const { CleanWebpackPlugin } = require("clean-webpack-plugin");
+const CompressionPlugin = require("compression-webpack-plugin")
 
+const isServe = process.env.SERVE
 let mode = "development";
 let target = "web";
+
 const plugins = [
-  new CleanWebpackPlugin(),
-  new MiniCssExtractPlugin(),
   new HtmlWebpackPlugin({
-    template: "./src/index.html",
+    template: "public/index.html"
   }),
+  new CopyPlugin({
+    patterns: [
+      {
+        from: "**/*",
+        globOptions: {
+          ignore: ["**/index.html"]
+        },
+        to: "",
+        context: path.resolve(__dirname, "public")
+      }
+    ]
+  }),
+  new MiniCssExtractPlugin({
+    filename: isServe ? "[name].css" : "static/css/[name].[contenthash:6].css"
+  }),
+  new ReactRefreshWebpackPlugin(),
+  new webpack.ProgressPlugin()
 ];
-const src = path.resolve(__dirname, 'src');
 
 if (process.env.NODE_ENV === "production") {
   mode = "production";
-  // Temporary workaround for 'browserslist' bug that is being patched in the near future
   target = "browserslist";
 }
 
-if (process.env.SERVE) {
-  // We only want React Hot Reloading in serve mode
-  plugins.push(new ReactRefreshWebpackPlugin());
+if (!isServe) {
+  // Serve mode
+  plugins.push(new CleanWebpackPlugin());
+  plugins.push(new CompressionPlugin({
+    test: /\.(css|js|html|svg)$/
+  }))
 }
 
 module.exports = {
@@ -37,8 +58,19 @@ module.exports = {
   output: {
     // output path is required for `clean-webpack-plugin`
     path: path.resolve(__dirname, "build"),
+    publicPath: "/",
     // this places all images processed in an image folder
-    assetModuleFilename: "images/[hash][ext][query]",
+    filename: "static/js/main.[contenthash:6].js",
+    environment: {
+      arrowFunction: false,
+      bigIntLiteral: false,
+      const: false,
+      destructuring: false,
+      dynamicImport: false,
+      forOf: false,
+      module: false
+    },
+    // assetModuleFilename: "images/[hash][ext][query]",
   },
 
   module: {
@@ -59,16 +91,13 @@ module.exports = {
         ],
       },
       {
-        test: /\.(png|jpe?g|gif|svg)$/i,
-        /**
-         * The `type` setting replaces the need for "url-loader"
-         * and "file-loader" in Webpack 5.
-         *
-         * setting `type` to "asset" will automatically pick between
-         * outputing images to a file, or inlining them in the bundle as base64
-         * with a default max inline size of 8kb
-         */
+        test: /\.(?:ico|gif|png|jpg|jpeg|webp|svg)$/i,
         type: "asset",
+        generator: {
+          filename: isServe
+          ? "[path][name].[ext]"
+          : "static/media/[name].[contenthash:6].[ext]"
+        }
 
         /**
          * If you want to inline larger images, you can set
@@ -79,6 +108,10 @@ module.exports = {
         //     maxSize: 30 * 1024,
         //   },
         // },
+      },
+      {
+        test: /\.(woff|woff2|eot|ttf|otf)$/,
+        type: 'asset/inline',
       },
       {
         test: /\.jsx?$/,
@@ -104,16 +137,27 @@ module.exports = {
 
   target: target,
 
-  devtool: "source-map",
+  devtool: isServe ? "source-map" : false,
 
   resolve: {
     modules: [path.resolve(__dirname, 'src'), 'node_modules'],
-    extensions: [".js", ".jsx"],
+    extensions: ["*", ".js", ".jsx"],
+    alias: {
+      "@": path.resolve("src"),
+      "@@": path.resolve()
+    }
   },
 
   // required if using webpack-dev-server
   devServer: {
-    contentBase: "./build",
+    contentBase: "public",
+    port: 8000,
     hot: true,
+    watchContentBase: true,
+    historyApiFallback: true,
+    open: true
   },
+  performance: {
+    maxEntrypointSize: 800000 
+  }
 };

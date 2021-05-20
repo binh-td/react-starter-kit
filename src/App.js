@@ -1,8 +1,3 @@
-// import Recipes from "./Recipes";
-// import sword from "../images/swc-sword.png";
-// import swordSvg from "../images/sword.svg";
-
-import "styles/index.scss";
 
 const App = () => {
   return (
